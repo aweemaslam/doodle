@@ -28,7 +28,8 @@ public record UserCalendar(String ownerId, List<TimeSlotEntity> slots) {
                 .filter(slot -> {
                     ZonedDateTime zdtStart = ZonedDateTime.ofInstant(slot.getStartTime(), zone);
                     // Drop slots that fall directly into a non-existent clock gap during spring-forward shifts
-                    return !rules.getTransition(zdtStart.toLocalDateTime()).isGap();
+                    var transition = rules.getTransition(zdtStart.toLocalDateTime());
+                    return transition == null || !transition.isGap();
                 })
                 .toList();
     }

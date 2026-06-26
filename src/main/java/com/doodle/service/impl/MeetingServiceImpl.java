@@ -7,6 +7,8 @@ import com.doodle.enums.AggregateType;
 import com.doodle.enums.OutboxEventType;
 import com.doodle.enums.SlotStatus;
 import com.doodle.exception.InvalidStatusTransitionException;
+import com.doodle.exception.ResourceNotFoundException;
+import com.doodle.exception.SlotNotFoundException;
 import com.doodle.model.MeetingEntity;
 import com.doodle.model.TimeSlotEntity;
 import com.doodle.repository.MeetingRepository;
@@ -97,7 +99,7 @@ public class MeetingServiceImpl implements IMeetingService {
         }
 
         TimeSlotEntity slot = timeSlotRepository.findById(payload.slotId())
-                .orElseThrow(() -> new IllegalStateException("Slot not found in DB for timeSlotId: " + payload.slotId()));
+                .orElseThrow(() -> new SlotNotFoundException("Slot not found in DB for timeSlotId: " + payload.slotId()));
 
         // Persist status change to match memory layer
         slot.setStatus(SlotStatus.RESERVED);
