@@ -1,33 +1,32 @@
 spring:
   application:
     name: doodle
+  threads:
+    virtual:
+      enabled: true
   datasource:
-    url: jdbc:h2:mem:doodle{random.uuid};MODE=PostgreSQL;DATABASE_TO_LOWER=TRUE;DEFAULT_NULL_ORDERING=HIGH;DB_CLOSE_ON_EXIT=FALSE;INIT=CREATE SCHEMA IF NOT EXISTS doodle
+    url: jdbc:h2:mem:doodle_test;MODE=PostgreSQL;DATABASE_TO_LOWER=TRUE;DEFAULT_NULL_ORDERING=HIGH;DB_CLOSE_ON_EXIT=FALSE;INIT=CREATE SCHEMA IF NOT EXISTS doodle
     username: sa
     password:
     driver-class-name: org.h2.Driver
     hikari:
-      schema: doodle
-      maximum-pool-size: 5
-      minimum-idle: 1
+      maximum-pool-size: 50
+      minimum-idle: 10
+      idle-timeout: 10000
+      max-lifetime: 2000000
+      connection-timeout: 30000
   jpa:
     open-in-view: false
     hibernate:
-      ddl-auto: none
-    properties:
-      hibernate:
-        dialect: org.hibernate.dialect.PostgreSQLDialect
-        jdbc.batch_size: 50
-        order_inserts: true
-        order_updates: true
+      ddl-auto: create-drop
   liquibase:
     change-log: classpath:db/changelog/main-changelog.xml
     default-schema: doodle
-    liquibase-schema: doodle
-    enabled: true
-  task:
-    scheduling:
-      enabled: false
+    enabled: false
+  data:
+    redis:
+      host: ${SPRING_REDIS_HOST:localhost}
+      port: ${SPRING_REDIS_PORT:6379}
   kafka:
     bootstrap-servers: ${SPRING_KAFKA_BOOTSTRAP_SERVERS:localhost:29092}
     topic:
@@ -48,12 +47,18 @@ spring:
       value-deserializer: org.springframework.kafka.support.serializer.JsonDeserializer
 
       properties:
-        spring.json.trusted.packages: com.caorderapi.kafka.model
+        spring.json.trusted.packages: com.doodle.kafka.model
         spring.json.use.type.headers: false
         spring.json.value.default.type: com.doodle.kafka.model.BookingEvent
 
-logging:
-  level:
-    com.ca.orderapi: INFO
-    org.hibernate.SQL: DEBUG
+server:
+  tomcat:
+    threads:
+      max: 200
+  keep-alive-timeout: 60s
+
+app:
+  jobs:
+    outbox-publish-delay-ms: 20
+
 

@@ -21,7 +21,7 @@ spring:
       ddl-auto: validate
   liquibase:
     change-log: classpath:db/changelog/main-changelog.xml
-    default-schema: ca_order_api
+    default-schema: doodle
     enabled: true
   data:
     redis:
@@ -47,7 +47,7 @@ spring:
       value-deserializer: org.springframework.kafka.support.serializer.JsonDeserializer
 
       properties:
-        spring.json.trusted.packages: com.caorderapi.kafka.model
+        spring.json.trusted.packages: com.doodle.kafka.model
         spring.json.use.type.headers: false
         spring.json.value.default.type: com.doodle.kafka.model.BookingEvent
 
