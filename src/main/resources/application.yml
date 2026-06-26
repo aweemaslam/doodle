@@ -1,0 +1,62 @@
+spring:
+  application:
+    name: doodle
+  threads:
+    virtual:
+      enabled: true
+  datasource:
+    url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://localhost:5432/doodle}
+    username: ${SPRING_DATASOURCE_USERNAME:sa}
+    password: ${SPRING_DATASOURCE_PASSWORD:sa}
+    driver-class-name: org.postgresql.Driver
+    hikari:
+      maximum-pool-size: 50
+      minimum-idle: 10
+      idle-timeout: 10000
+      max-lifetime: 2000000
+      connection-timeout: 30000
+  jpa:
+    open-in-view: false
+    hibernate:
+      ddl-auto: validate
+  liquibase:
+    change-log: classpath:db/changelog/main-changelog.xml
+    default-schema: ca_order_api
+    enabled: true
+  data:
+    redis:
+      host: ${SPRING_REDIS_HOST:localhost}
+      port: ${SPRING_REDIS_PORT:6379}
+  kafka:
+    bootstrap-servers: ${SPRING_KAFKA_BOOTSTRAP_SERVERS:localhost:29092}
+    topic:
+      book-slot-event: book-slot-event-topic
+
+    producer:
+      key-serializer: org.apache.kafka.common.serialization.StringSerializer
+      value-serializer: org.springframework.kafka.support.serializer.JsonSerializer
+      properties:
+        acks: all
+        enable.idempotence: true
+        retries: 5
+
+    consumer:
+      group-id: booking-persistence-group
+      auto-offset-reset: earliest
+      key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+      value-deserializer: org.springframework.kafka.support.serializer.JsonDeserializer
+
+      properties:
+        spring.json.trusted.packages: com.caorderapi.kafka.model
+        spring.json.use.type.headers: false
+        spring.json.value.default.type: com.doodle.kafka.model.BookingEvent
+
+server:
+  tomcat:
+    threads:
+      max: 200
+  keep-alive-timeout: 60s
+
+app:
+  jobs:
+    outbox-publish-delay-ms: 20

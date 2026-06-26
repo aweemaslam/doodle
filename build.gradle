@@ -1,0 +1,71 @@
+plugins {
+	id 'java'
+	id 'org.springframework.boot' version '4.1.0'
+	id 'io.spring.dependency-management' version '1.1.7'
+}
+
+group = 'com'
+version = '0.0.1-SNAPSHOT'
+
+java {
+	toolchain {
+		languageVersion = JavaLanguageVersion.of(26)
+	}
+}
+
+repositories {
+	mavenCentral()
+}
+
+ext {
+	set('springDocVersion', '3.0.3')
+	set('shedlockVersion', '6.2.0')
+	set('testContainerVersion', '1.20.4')
+}
+
+dependencies {
+	// === Core Spring Boot Framework Starters ===
+	implementation 'org.springframework.boot:spring-boot-starter-web'
+	implementation 'org.springframework.boot:spring-boot-starter-data-jpa'
+	implementation 'org.springframework.boot:spring-boot-starter-validation'
+	implementation 'org.springframework.boot:spring-boot-starter-data-redis'
+	implementation 'org.springframework.kafka:spring-kafka'
+
+	// === Database Migration & Driver Ecosystem ===
+	implementation 'org.liquibase:liquibase-core'
+	runtimeOnly 'org.postgresql:postgresql'
+
+	// === Extension Libraries & Utils ===
+	implementation "net.javacrumbs.shedlock:shedlock-spring:${shedlockVersion}"
+	implementation "net.javacrumbs.shedlock:shedlock-provider-jdbc-template:${shedlockVersion}"
+	implementation "org.springdoc:springdoc-openapi-starter-webmvc-ui:${springDocVersion}"
+
+	// === Developer Tools & Performance Profiling ===
+	developmentOnly 'org.springframework.boot:spring-boot-devtools'
+	compileOnly 'org.projectlombok:lombok'
+	annotationProcessor 'org.projectlombok:lombok'
+
+	// === Testing Core & Framework Slices ===
+	testImplementation 'org.springframework.boot:spring-boot-starter-test'
+	testImplementation 'org.springframework.boot:spring-boot-starter-data-jpa-test'
+	testImplementation 'org.springframework.boot:spring-boot-starter-validation-test'
+	testImplementation 'org.springframework.boot:spring-boot-starter-webmvc-test'
+	testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
+	testRuntimeOnly 'com.h2database:h2'
+
+	// === Test-scoped Compile Tools ===
+	testCompileOnly 'org.projectlombok:lombok'
+	testAnnotationProcessor 'org.projectlombok:lombok'
+
+	// === Testcontainers & Cloud Native Testing Infrastructure ===
+	testImplementation 'org.springframework.kafka:spring-kafka-test'
+	testImplementation platform("org.testcontainers:testcontainers-bom:${testContainerVersion}")
+	testImplementation "org.testcontainers:junit-jupiter"
+	testImplementation "org.testcontainers:kafka"
+	testImplementation "org.testcontainers:postgresql"
+
+}
+
+tasks.named('test') {
+	useJUnitPlatform()
+}
