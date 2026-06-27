@@ -7,6 +7,7 @@ import lombok.Setter;
 import org.hibernate.annotations.CreationTimestamp;
 import org.hibernate.annotations.UpdateTimestamp;
 
+import java.io.Serializable;
 import java.time.Instant;
 
 /**
@@ -15,7 +16,7 @@ import java.time.Instant;
 @MappedSuperclass
 @Getter
 @Setter
-public abstract class BaseEntity {
+public abstract class BaseEntity implements Serializable {
 
     /**
      * Timestamp when the entity was created (automatically set, not updatable).
@@ -31,6 +32,6 @@ public abstract class BaseEntity {
     protected Instant updatedAt;
 
     @Column(name = "is_active", nullable = false)
-    protected boolean active;
+    protected boolean active = true;
 
 }

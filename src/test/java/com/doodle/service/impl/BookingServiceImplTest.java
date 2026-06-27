@@ -3,12 +3,13 @@ package com.doodle.service.impl;
 import com.doodle.dto.BookingRequest;
 import com.doodle.dto.OutboxEntityPayload;
 import com.doodle.enums.SlotStatus;
-import com.doodle.exception.InvalidStatusTransitionException;
+import com.doodle.exception.SlotConflictException;
 import com.doodle.exception.SlotNotFoundException;
-import com.doodle.model.MeetingEntity;
+import com.doodle.model.BookingEntity;
 import com.doodle.model.TimeSlotEntity;
-import com.doodle.repository.MeetingRepository;
+import com.doodle.repository.BookingRepository;
 import com.doodle.repository.TimeSlotRepository;
+import com.doodle.repository.UserRepository;
 import com.doodle.service.IOutboxEventService;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -18,16 +19,16 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.data.redis.core.script.RedisScript;
 
-import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
-class MeetingServiceImplTest {
+class BookingServiceImplTest {
 
     @Mock
     private IOutboxEventService outboxEventService;
@@ -36,13 +37,16 @@ class MeetingServiceImplTest {
     private StringRedisTemplate redisTemplate;
 
     @Mock
-    private MeetingRepository meetingRepository;
+    private BookingRepository bookingRepository;
+
+    @Mock
+    private UserRepository userRepository;
 
     @Mock
     private TimeSlotRepository timeSlotRepository;
 
     @InjectMocks
-    private MeetingServiceImpl meetingService;
+    private BookingServiceImpl bookingService;
 
     // ----------------------------
     // 1. SUCCESSFUL PENDING RESERVATION
@@ -50,13 +54,12 @@ class MeetingServiceImplTest {
     @Test
     void shouldMarkPendingReservationSuccessfully() {
         BookingRequest request = mock(BookingRequest.class);
-
+        when(userRepository.existsByEmailAndActiveTrue(any())).thenReturn(true);
         when(redisTemplate.execute(any(RedisScript.class), anyList()))
                 .thenReturn(1L);
 
-        boolean result = meetingService.markPendingReservationInRedis(100L, request);
-
-        assertTrue(result);
+        // This call should run cleanly without exceptions
+        assertDoesNotThrow(() -> bookingService.markPendingReservationInRedis(100L, request));
 
         verify(outboxEventService, times(1))
                 .saveOutbox(any(), eq("100"), any(), any(OutboxEntityPayload.class));
@@ -66,33 +69,35 @@ class MeetingServiceImplTest {
     // 2. FAILED RESERVATION (slot not FREE)
     // ----------------------------
     @Test
-    void shouldReturnFalseWhenSlotNotFreeInRedis() {
+    void shouldThrowSlotConflictExceptionWhenSlotNotFreeInRedis() {
         BookingRequest request = mock(BookingRequest.class);
-
+        when(userRepository.existsByEmailAndActiveTrue(any())).thenReturn(true);
         when(redisTemplate.execute(any(RedisScript.class), anyList()))
-                .thenReturn(0L);
+                .thenReturn(0L); // Redis script indicates collision
 
-        boolean result = meetingService.markPendingReservationInRedis(100L, request);
+        // Assert that the service correctly throws a SlotConflictException
+        SlotConflictException exception = assertThrows(SlotConflictException.class, () ->
+                bookingService.markPendingReservationInRedis(100L, request)
+        );
 
-        assertFalse(result);
-
+        assertEquals("Booking conflict: Slot is already reserved or unavailable.", exception.getMessage());
         verifyNoInteractions(outboxEventService);
     }
 
     // ----------------------------
-    // 3. IDENTITY GUARD (meeting already exists)
+    // 3. IDENTITY GUARD (booking already exists)
     // ----------------------------
     @Test
-    void shouldSkipIfMeetingAlreadyExists() {
+    void shouldSkipIfBookingAlreadyExists() {
         OutboxEntityPayload payload = mock(OutboxEntityPayload.class);
         when(payload.slotId()).thenReturn(10L);
 
-        when(meetingRepository.existsByTimeSlotId(10L)).thenReturn(true);
+        when(bookingRepository.existsByTimeSlotIdAndActiveTrue(10L)).thenReturn(true);
 
-        meetingService.performReservation(payload);
+        bookingService.performReservation(payload);
 
-        verify(timeSlotRepository, never()).findById(any());
-        verify(meetingRepository, never()).save(any());
+        verify(timeSlotRepository, never()).findByIdAndActiveTrue(any());
+        verify(bookingRepository, never()).save(any());
     }
 
     // ----------------------------
@@ -109,17 +114,16 @@ class MeetingServiceImplTest {
         TimeSlotEntity slot = new TimeSlotEntity();
         slot.setStatus(SlotStatus.PENDING_RESERVATION);
 
-        when(meetingRepository.existsByTimeSlotId(10L)).thenReturn(false);
-        when(timeSlotRepository.findById(10L)).thenReturn(Optional.of(slot));
-        when(redisTemplate.execute(
-                any(), anyList()
-        )).thenReturn(1L);
-        meetingService.performReservation(payload);
+        when(bookingRepository.existsByTimeSlotIdAndActiveTrue(10L)).thenReturn(false);
+        when(timeSlotRepository.findByIdAndActiveTrue(10L)).thenReturn(Optional.of(slot));
+        when(redisTemplate.execute(any(), anyList())).thenReturn(1L);
+
+        bookingService.performReservation(payload);
 
         assertEquals(SlotStatus.RESERVED, slot.getStatus());
 
         verify(timeSlotRepository, times(1)).save(slot);
-        verify(meetingRepository, times(1)).save(any(MeetingEntity.class));
+        verify(bookingRepository, times(1)).save(any(BookingEntity.class));
     }
 
     // ----------------------------
@@ -130,11 +134,11 @@ class MeetingServiceImplTest {
         OutboxEntityPayload payload = mock(OutboxEntityPayload.class);
         when(payload.slotId()).thenReturn(999L);
 
-        when(meetingRepository.existsByTimeSlotId(999L)).thenReturn(false);
-        when(timeSlotRepository.findById(999L)).thenReturn(Optional.empty());
+        when(bookingRepository.existsByTimeSlotIdAndActiveTrue(999L)).thenReturn(false);
+        when(timeSlotRepository.findByIdAndActiveTrue(999L)).thenReturn(Optional.empty());
 
         assertThrows(SlotNotFoundException.class,
-                () -> meetingService.performReservation(payload));
+                () -> bookingService.performReservation(payload));
     }
 
     // ----------------------------
@@ -142,17 +146,30 @@ class MeetingServiceImplTest {
     // ----------------------------
     @Test
     void shouldCallRedisReservationScriptDuringFinalization() {
+        // Arrange
         OutboxEntityPayload payload = mock(OutboxEntityPayload.class);
         BookingRequest request = mock(BookingRequest.class);
 
         when(payload.slotId()).thenReturn(1L);
         when(payload.request()).thenReturn(request);
+        when(request.title()).thenReturn("Meeting");
+        when(request.description()).thenReturn("Discussion");
+        when(request.participants()).thenReturn(Set.of("alice@example.com"));
 
         TimeSlotEntity slot = new TimeSlotEntity();
+        slot.setId(1L);
+        slot.setStatus(SlotStatus.PENDING_RESERVATION);
 
-        when(meetingRepository.existsByTimeSlotId(1L)).thenReturn(false);
-        when(timeSlotRepository.findById(1L)).thenReturn(Optional.of(slot));
+        when(bookingRepository.existsByTimeSlotIdAndActiveTrue(1L)).thenReturn(false);
+        when(timeSlotRepository.findByIdAndActiveTrue(1L)).thenReturn(Optional.of(slot));
 
-        assertThrows(InvalidStatusTransitionException.class, () -> meetingService.performReservation(payload));
+        // Act
+        assertDoesNotThrow(() -> bookingService.performReservation(payload));
+
+        // Assert: Verify that the Redis script was executed with the expected key structure
+        verify(redisTemplate, times(1)).execute(
+                any(RedisScript.class),
+                eq(List.of("slot:state:1"))
+        );
     }
 }

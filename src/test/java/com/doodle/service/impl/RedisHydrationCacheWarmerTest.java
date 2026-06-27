@@ -5,6 +5,7 @@ import com.doodle.model.TimeSlotEntity;
 import com.doodle.repository.TimeSlotRepository;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
@@ -13,7 +14,9 @@ import org.springframework.data.redis.core.ValueOperations;
 
 import java.time.Instant;
 import java.util.List;
+import java.util.Map;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.*;
@@ -47,16 +50,25 @@ class RedisHydrationCacheWarmerTest {
         slot2.setId(2L);
         slot2.setStatus(SlotStatus.FREE);
 
-        when(timeSlotRepository.findByStatusAndEndTimeAfter(
+        when(timeSlotRepository.findByStatusAndEndTimeAfterAndActiveTrue(
                 eq(SlotStatus.FREE),
                 any(Instant.class)
         )).thenReturn(List.of(slot1, slot2));
 
         when(redisTemplate.opsForValue()).thenReturn(valueOperations);
+        when(valueOperations.multiSetIfAbsent(anyMap())).thenReturn(Boolean.TRUE);
 
         warmer.hydrateRedisCacheOnStartup();
 
-        verify(valueOperations, times(2)).setIfAbsent(anyString(), eq("FREE"));
+        // Use ArgumentCaptor to verify bulk map structure instead of individual calls
+        @SuppressWarnings("unchecked")
+        ArgumentCaptor<Map<String, String>> mapCaptor = ArgumentCaptor.forClass(Map.class);
+        verify(valueOperations, times(1)).multiSetIfAbsent(mapCaptor.capture());
+
+        Map<String, String> capturedMap = mapCaptor.getValue();
+        assertEquals(2, capturedMap.size());
+        assertEquals("FREE", capturedMap.get("slot:state:1"));
+        assertEquals("FREE", capturedMap.get("slot:state:2"));
     }
 
     // ----------------------------
@@ -65,14 +77,15 @@ class RedisHydrationCacheWarmerTest {
     @Test
     void shouldHandleEmptySlotList() {
 
-        when(timeSlotRepository.findByStatusAndEndTimeAfter(
+        when(timeSlotRepository.findByStatusAndEndTimeAfterAndActiveTrue(
                 eq(SlotStatus.FREE),
                 any(Instant.class)
         )).thenReturn(List.of());
 
         warmer.hydrateRedisCacheOnStartup();
 
-        verify(valueOperations, never()).setIfAbsent(anyString(), anyString());
+        // Ensure no bulk write interactions ever execute when list is empty
+        verifyNoInteractions(redisTemplate);
     }
 
     // ----------------------------
@@ -85,16 +98,23 @@ class RedisHydrationCacheWarmerTest {
         slot.setId(123L);
         slot.setStatus(SlotStatus.FREE);
 
-        when(timeSlotRepository.findByStatusAndEndTimeAfter(
+        when(timeSlotRepository.findByStatusAndEndTimeAfterAndActiveTrue(
                 eq(SlotStatus.FREE),
                 any(Instant.class)
         )).thenReturn(List.of(slot));
 
         when(redisTemplate.opsForValue()).thenReturn(valueOperations);
+        when(valueOperations.multiSetIfAbsent(anyMap())).thenReturn(Boolean.TRUE);
 
         warmer.hydrateRedisCacheOnStartup();
 
-        verify(valueOperations, times(1)).setIfAbsent("slot:state:123", "FREE");
+        @SuppressWarnings("unchecked")
+        ArgumentCaptor<Map<String, String>> mapCaptor = ArgumentCaptor.forClass(Map.class);
+        verify(valueOperations, times(1)).multiSetIfAbsent(mapCaptor.capture());
+
+        Map<String, String> capturedMap = mapCaptor.getValue();
+        assertEquals(1, capturedMap.size());
+        assertEquals("FREE", capturedMap.get("slot:state:123"));
     }
 
     // ----------------------------
@@ -103,16 +123,14 @@ class RedisHydrationCacheWarmerTest {
     @Test
     void shouldOnlyHydrateFreeSlots() {
 
-        when(timeSlotRepository.findByStatusAndEndTimeAfter(
+        when(timeSlotRepository.findByStatusAndEndTimeAfterAndActiveTrue(
                 eq(SlotStatus.FREE),
                 any(Instant.class)
         )).thenReturn(List.of());
 
-        //when(redisTemplate.opsForValue()).thenReturn(valueOperations);
-
         warmer.hydrateRedisCacheOnStartup();
 
-        verify(timeSlotRepository, never()).findByStatusAndEndTimeAfter(
+        verify(timeSlotRepository, never()).findByStatusAndEndTimeAfterAndActiveTrue(
                 eq(SlotStatus.RESERVED),
                 any(Instant.class)
         );
@@ -128,7 +146,7 @@ class RedisHydrationCacheWarmerTest {
         slot.setId(1L);
         slot.setStatus(SlotStatus.FREE);
 
-        when(timeSlotRepository.findByStatusAndEndTimeAfter(
+        when(timeSlotRepository.findByStatusAndEndTimeAfterAndActiveTrue(
                 eq(SlotStatus.FREE),
                 any(Instant.class)
         )).thenReturn(List.of(slot));

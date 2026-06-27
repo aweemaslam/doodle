@@ -1,235 +1,320 @@
-# 🪐 Mini-Doodle Scheduling Engine — Repository Overview and How to Run
+ 🗓️ Doodle API – High-Performance Distributed Meeting Scheduling Engine
+------------------------------
+## 📌 Overview
+This project is a production-grade Spring Boot microservice that implements a complete, highly available Meeting Scheduling Platform with time slot management, distributed calendars, dynamic time zone translation, Kafka event streaming, Redis caching, and distributed scheduling.
+The current implementation intentionally remains a modular monolith to keep operational complexity low while preserving clear service boundaries for future extraction into independent microservices.
+The implementation goes beyond a standard CRUD service by incorporating modern backend engineering practices, including microservice-friendly architecture patterns such as:
 
-This repository is a compact, production-minded implementation of a meeting scheduling system (a "mini Doodle"). It demonstrates architecture patterns and engineering trade-offs used to build a low-latency scheduling platform that can handle large numbers of concurrent reservation attempts while ensuring eventual consistency in persistent storage.
+* 🧾 Time Slot Lifecycle Management (Create → Soft Delete → Modify → Transition)
+* 🧠 Instant Concurrency Isolation using Redis + atomic Scripting semantics
+* 📬 Transactional Outbox Pattern for reliable asynchronous event publishing
+* ⚡ Kafka-based event-driven communication
+* 🔐 State transitions (FREE → PENDING_RESERVATION → RESERVED)
+* 🔁 Distributed scheduling with ShedLock to support horizontal scaling
+* 🐘 PostgreSQL + Liquibase for reliable schema change tracking
+* 🚀 Dockerized full-stack infrastructure environment
 
-This README provides a lead-level view of the project, including architecture, project structure, APIs, operational instructions (docker-compose), testing, metrics, and guidance for further work.
+The system is designed to simulate a real-world scalable meeting orchestration platform capable of handling extreme concurrency.
+------------------------------
+## 🎯 Implemented User Stories
+
+* ✅ As a calendar owner, I can create individual or continuous bulk availability time slots.
+* ✅ As a calendar owner, I can modify, transition, or soft-delete my time slots.
+* ✅ As a customer, I can view an aggregated, paginated calendar shifted dynamically into my local time zone.
+* ✅ As a customer, I can convert an available free slot into a formalized booking with participants.
+* ✅ As a system, high-speed atomic state checks lock slots instantly in memory to prevent double-booking.
+* ✅ As a system, a transactional outbox table logs state modifications atomically inside business boundaries.
+* ✅ As a system, background worker relays poll and stream event payloads asynchronously over Kafka.
+
+------------------------------
+
+## 🔷 N-Layered Architecture
+
+* Controller → Service → Helper Utility → Repository → Entity
+
+## 🔷 Event-Driven Architecture
+
+* Kafka for asynchronous horizontal communication.
+* Transactional Outbox Pattern for reliable message publication without database connection starvation.
+
+## 🔷 Key Design Principles
+
+* SOLID principles and Clean Code practices.
+* Java 26 Virtual Threads (spring.threads.virtual.enabled: true) to maximize I/O concurrency.
+* Strict separation of concerns (Presentation Enums vs. Core Database State Enums).
+* Multi-zone chronology checking to prevent Daylight Saving Time (DST) gap collision vulnerabilities.
+
+------------------------------
+## ⚙️ Tech Stack
+
+* Java 26
+* Spring Boot 4.1.0
+* Spring Data JPA
+* PostgreSQL 16
+* Redis 7.2 (Operational Fast-Path State Cache)
+* Apache Kafka (Confluent Platform 7.5.0)
+* ShedLock (JDBC Template Lock Provider)
+* Liquibase
+* Docker & Docker Compose
+* Swagger / OpenAPI (SpringDoc WebMvc)
+* Jakarta Bean Validation
+* Lombok
+
+------------------------------
+## 🚀 Features & Enhancements## 📦 Time Slot & Meeting Management
+
+* Create singular availability slots or bulk-divide a macro timeline into equal segments.
+* Universal pageable lookup window aggregation query pipelines.
+* Soft deletion support to preserve historical tracking records across related booking tables.
+
+------------------------------
+## ⚡ Redis Concurrency Isolation
+
+* Instant, fast-path lock allocation using single-threaded atomic LUA script logic checks.
+* Eliminates heavy PostgreSQL row-lock contention under massive concurrent booking spikes.
+* Dual-write data alignment guaranteed using automatic compensating Redis rollbacks if database commits fail.
+
+------------------------------
+## 📡 Event-Driven Architecture
+
+* Asynchronous background event publication completely decoupled from active database connection threads.
+* Implements reliable "at-least-once" messaging mechanics using transaction template chunk processing.
+
+Supported events:
+
+* PENDING_RESERVATION_EVENT
+* RESERVED_EVENT
+
+------------------------------
+## ⏱️ Scheduler + ShedLock
+
+* Outbox event publisher background cron task running every 20 milliseconds.
+* Distributed-safe task orchestration guarded by ShedLock to prevent duplicate message emissions across expanded cluster instances.
+
+------------------------------
+## ⚡ Smart Cache Warmup
+
+* Dynamic RedisHydrationCacheWarmer triggers on ApplicationReadyEvent app launch phases.
+* Hydrates only active upcoming free slots, keeping memory utilization strictly optimized.
+
+------------------------------
+## ❗ Centralized Exception Handling
+
+* Unified diagnostic layout structures returned cleanly via an integrated @RestControllerAdvice controller layer interceptor.
+* Guards system privacy by automatically logging raw server crashes internally while returning safe error tokens.
+
+------------------------------
+## 🗄️ Database Strategy
+The application uses:
+
+* PostgreSQL for immutable persistent storage.
+* Redis for transient fast-path state validation.
+
+## Initialization & Indexing Strategy
+To handle high-throughput query scans efficiently without causing connection pool latency degradation:
+
+1. Active upcoming slots are batched cleanly into Redis memory caches upon context boot up.
+2. Initial booking handshakes check and set states inside Redis memory in microseconds.
+3. The database layer utilizes optimized partial and composite indexing structures:
+* idx_users_lookup ON users (email, is_active) -> Enables index-only authentication scans.
+    * idx_time_slots_schedule ON time_slots (start_time, end_time, is_active) -> Accelerates range queries.
+    * idx_outbox_events_polling ON outbox_events (processed, created_at) WHERE processed = FALSE -> Provides instant, zero-overhead partial index sweeps for uncompleted events.
+
+------------------------------
+## 🔄 Scheduler
+## 📡 Outbox Publisher Job
+Polls and relays uncompleted outbox log lines to the Kafka broker cluster asynchronously.
+
+@Scheduled(fixedDelayString = "${app.jobs.outbox-publish-delay-ms:20}")
+@SchedulerLock(name = "outboxPublisherJob", lockAtLeastFor = "PT2S", lockAtMostFor = "PT20S")public void publish() {
+// Isolates DB transaction chunk reads from Kafka Network I/O
+}
+
+------------------------------
+
+## 📘 API Documentation
+
+Swagger UI:
+
+```text
+http://localhost:8080/swagger-ui/index.html
+```
+![swagger.png](src/main/resources/documentation/swagger.png)
+------------------------------
+## 📡 API Endpoints##
+### REST Endpoints
+
+| Method | Endpoint | Description |
+|---------|----------|-------------|
+| **POST** | `/api/v1/slots` | Create a single availability slot |
+| **POST** | `/api/v1/slots/bulk` | Generate multiple consecutive availability slots |
+| **GET** | `/api/v1/slots/{ownerId}` | Retrieve paginated calendar availability |
+| **PUT** | `/api/v1/slots/{id}` | Update an existing time slot |
+| **PATCH** | `/api/v1/slots/{id}/status` | Update slot status |
+| **DELETE** | `/api/v1/slots/{id}` | Soft delete a slot |
+| **POST** | `/api/v1/slots/{id}/book` | Book an available slot |
 
 ---
 
-## Quick summary
-
-- Language: Java
-- Framework: Spring Boot (4.x)
-- Persistence: PostgreSQL (liquibase migrations present)
-- In-memory coordination: Redis
-- Messaging / Outbox: Apache Kafka (Transactional Outbox pattern)
-- Containerized development: Docker + docker-compose
-- Tests: JUnit Jupiter, Mockito, Testcontainers (used in integration tests)
-
-This project demonstrates the following capabilities:
-- Slot CRUD (create, update, delete, change status)
-- Convert free slots into meetings (reservation flow)
-- Calendar aggregation API (domain-level calendar view)
-- Redis-driven fast path for slot reservation and hydration on startup
-- Kafka-based asynchronous outbox relay for durable persistence of events
-
----
-
-## Table of contents
-
-1. Project overview and design
-2. Project structure
-3. Key domain models & APIs (examples + payloads)
-4. How to run locally (docker-compose)
-5. Running tests
-6. Observability and metrics (what to add)
-7. Design notes & trade-offs
-8. Next steps and extension ideas
-
----
-
-## 1) Project overview and design
-
-This implementation intentionally separates the fast, synchronous request path from the slower persistence path:
-
-- Fast path: HTTP requests arrive and validations happen in Spring controllers/services. For reservation-critical operations the application uses Redis (and optionally Lua scripts) as an atomic, low-latency store to flip slot state and seed an in-memory outbox.
-- Async path: A background relay/consumer reads the in-memory outbox (or a Redis stream) and publishes change events to Kafka. Kafka ensures ordered processing per-slot (slotId used as partition key). Consumers read Kafka and apply idempotent changes to PostgreSQL.
-
-This reduces load on relational DB connections under high contention and provides well-defined ordering guarantees via Kafka partitions.
-
-Important domain boundaries:
-- Slot (TimeSlot) — represents an available time window belonging to a user (owner). Persisted to DB and seeded to Redis for fast checks.
-- Meeting — created from a slot; contains title, description, list of participants, stored in DB.
-- Calendar — domain aggregate built on-demand; the repository does not have a separate calendar table.
-
----
-
-## 2) Project structure
-
-Top-level (relevant files/directories):
-
-- `build.gradle` — Gradle build with test and Testcontainers configuration
-- `docker-compose.yml` — local infra (Postgres, Kafka, Redis) for running the service end-to-end
-- `src/main/java/com/doodle/` — application code
-  - `controller/` — REST controllers (TimeSlotController, MeetingBookingController, CalendarController)
-  - `dto/` — request/response DTOs (SlotRequest, BulkSlotRequest, BookingRequest, TimeSlotResponse)
-  - `enums/` — domain enums (SlotStatus, OutboxEventType, AggregateType)
-  - `model/` — JPA entities (TimeSlotEntity, MeetingEntity, OutboxEventEntity, UserEntity, BaseEntity)
-  - `repository/` — Spring Data JPA repositories
-  - `service/` — service interfaces and implementations (TimeSlotServiceImpl, MeetingServiceImpl, OutboxEventService, RedisHydrationCacheWarmer)
-  - `kafka/` — Kafka producer/consumer glue
-
-- `src/main/resources/db/changelog` — Liquibase changelogs and SQL DDL used to create schema and seed data
-- `src/test/java` — unit and integration tests (JUnit, Mockito, Testcontainers initializers)
-
-Files you will likely inspect first:
-- `src/main/java/com/doodle/controller/TimeSlotController.java`
-- `src/main/java/com/doodle/controller/MeetingBookingController.java`
-- `src/main/java/com/doodle/service/impl/TimeSlotServiceImpl.java`
-- `src/main/resources/db/changelog/sql/01-create-schema-table.sql`
-
----
-
-## 3) Key domain models & APIs
-
-Primary REST endpoints (base path `/api/v1`):
-
-- Time Slots
-  - POST `/api/v1/slots` — Create a single slot
-	- payload: `SlotRequest(ownerId, startTime, endTime, timezoneId)`
-  - POST `/api/v1/slots/bulk` — Create multiple slots (bulk generator)
-	- payload: `BulkSlotRequest(ownerId, startTime, endTime, numberOfSlots, timezoneId)`
-  - PUT `/api/v1/slots/{id}` — Modify an existing slot
-	- payload: `SlotRequest` (same shape)
-  - PATCH `/api/v1/slots/{id}/status` — Change status (query param `status` e.g. `FREE`, `RESERVED`)
-  - DELETE `/api/v1/slots/{id}` — Delete a slot
-
-- Meeting / Booking
-  - POST `/api/v1/slots/{id}/book` — Book a slot into a meeting
-	- payload: `BookingRequest(title, description, participants (Set<String>), ownerId)`
-	- returns `BookingResponse(status, message)`
-
-- Calendar
-  - GET `/api/v1/calendars/{ownerId}` — Aggregated calendar view for owner, supports `start`, `end`, `viewingTimeZone` query params
-
-Notes about payloads:
-- All times are represented as ISO-8601 Instants in UTC in the DTOs (e.g. `2024-01-01T10:00:00Z`).
-- The DTOs are simple Java records where appropriate (see `src/main/java/com/doodle/dto`).
-
-Example curl to create a slot:
+### Create a Time Slot
 
 ```bash
-curl -X POST http://localhost:8080/api/v1/slots \
+curl -X POST "http://localhost:8080/api/v1/slots" \
   -H "Content-Type: application/json" \
-  -d '{"ownerId":"alice@example.com","startTime":"2026-01-01T10:00:00Z","endTime":"2026-01-01T11:00:00Z","timezoneId":"UTC"}'
+  -H "Accept: application/json" \
+  -d '{
+    "ownerId": "alice.smith@example.com",
+    "startTime": "2026-08-29T14:00:00Z",
+    "endTime": "2026-08-29T15:00:00Z",
+    "timezoneId": "Asia/Karachi"
+}'
 ```
 
-Example to book a slot:
+---
+
+### Bulk Create Time Slots
 
 ```bash
-curl -X POST http://localhost:8080/api/v1/slots/1/book \
+curl -X POST "http://localhost:8080/api/v1/slots/bulk" \
   -H "Content-Type: application/json" \
-  -d '{"title":"Team Sync","description":"Discuss Q2","participants":["bob@example.com"],"ownerId":"alice@example.com"}'
+  -H "Accept: application/json" \
+  -d '{
+    "ownerId": "alice.smith@example.com",
+    "startTime": "2026-07-28T17:19:49.565Z",
+    "endTime": "2026-07-29T17:19:49.565Z",
+    "numberOfSlots": 10,
+    "timezoneId": "Asia/Karachi"
+}'
 ```
 
 ---
 
-## 4) How to run locally (docker-compose)
+### Retrieve Calendar Availability
 
-Prerequisites:
-- Docker & Docker Compose v2
-- (Optional) Java 21+ if you want to run the app locally outside containers
-
-Start everything locally (Postgres, Redis, Kafka, and the app using the included Dockerfile):
+With status filter:
 
 ```bash
-docker-compose up --build -d
+curl -X GET "http://localhost:8080/api/v1/slots/alice.smith@example.com?start=2026-05-28T17:19:49.565Z&end=2026-08-28T17:19:49.565Z&viewingTimeZone=Europe/Berlin&status=RESERVED&page=0&size=20" \
+  -H "Accept: application/json"
 ```
 
-Wait for containers to come up. Common logs to watch:
+Without status filter:
 
 ```bash
-docker-compose logs -f app
-docker-compose logs -f postgres
-docker-compose logs -f kafka
-docker-compose logs -f redis
+curl -X GET "http://localhost:8080/api/v1/slots/alice.smith@example.com?start=2026-05-28T17:19:49.565Z&end=2026-08-28T17:19:49.565Z&viewingTimeZone=Europe/Berlin&page=0&size=20" \
+  -H "Accept: application/json"
 ```
 
-Notes:
-- Liquibase changelogs live under `src/main/resources/db/changelog`. The Docker image / Spring config runs Liquibase on startup to create the required schema and seed data.
-- If you prefer a local JVM run for development (faster iterative code changes), run:
+---
+
+### Update a Time Slot
 
 ```bash
-./gradlew bootRun
+curl -X PUT "http://localhost:8080/api/v1/slots/2" \
+  -H "Content-Type: application/json" \
+  -H "Accept: application/json" \
+  -d '{
+    "ownerId": "alice.smith@example.com",
+    "startTime": "2026-06-28T19:00:00Z",
+    "endTime": "2026-06-28T20:00:00Z",
+    "timezoneId": "Asia/Karachi"
+}'
 ```
-
-Environment / application properties used for containers are configured using Spring Boot properties inside `src/main/resources/application.yml` and `src/test/resources/application-test.yml`.
 
 ---
 
-## 5) Running tests
+### Update Slot Status
 
-Unit & integration test suites are included. To run the full test suite locally (requires Docker for Testcontainers):
+Supported values:
+
+- `FREE`
+- `RESERVED`
+- `NOT_AVAILABLE`
+
+Example:
 
 ```bash
-./gradlew test --no-daemon
+curl -X PATCH "http://localhost:8080/api/v1/slots/2/status?status=NOT_AVAILABLE" \
+  -H "Accept: application/json"
 ```
 
-Notes:
-- Some integration tests utilize Testcontainers and therefore require Docker running locally.
-- Test reports are generated under `build/reports/tests/test/index.html`.
+---
 
-If you want to run a single test class:
+### Delete a Time Slot
 
 ```bash
-./gradlew test --tests "com.doodle.service.impl.TimeSlotServiceImplTest"
+curl -X DELETE "http://localhost:8080/api/v1/slots/10" \
+  -H "Accept: application/json"
 ```
 
 ---
 
-## 6) Observability & metrics (what to add / where to look)
+### Book a Time Slot
 
-This repository includes places where metrics and monitoring hooks should be added:
+```bash
+curl -X POST "http://localhost:8080/api/v1/slots/5/book" \
+  -H "Content-Type: application/json" \
+  -H "Accept: application/json" \
+  -d '{
+    "title": "Project Planning Meeting",
+    "description": "Sprint Planning Discussion",
+    "participants": [
+      "john@example.com",
+      "jane@example.com"
+    ],
+    "ownerId": "alice.smith@example.com"
+}'
+```
+------------------------------
+## ▶️ Running the Application
+## 🐳 Run Full Stack Using Docker Compose
 
-- Instrument the fast-path Redis reservation with Micrometer timers and counters (success/fail, latency histogram).
-- Instrument outbox relay throughput and error counters.
-- Expose per-endpoint metrics via `/actuator/metrics` (Spring Boot Actuator). Consider adding Prometheus-exporter and Grafana dashboard.
-- Add structured logs for important domain events (slot-created, slot-booked, outbox-emitted, outbox-applied) with correlation IDs.
+1. Initialize and deploy the entire multi-container stack in detached mode:
 
----
+``` docker compose up --build -d ```
 
-## 7) Design notes, decisions & trade-offs
 
-Why Redis + Kafka + Postgres?
-- Redis: extremely low-latency atomic operations for contention hotspots (slot booking). It prevents DB connection storms during flash events.
-- Kafka: provides durable, ordered event delivery for eventual consistent writes to DB and decouples persistence from the synchronous path.
-- Postgres: the source-of-truth for historical data, queries, and analytics.
+## Services Included
 
-Trade-offs made in this sample:
-- The current code demonstrates an outbox flow but does not include a full, production hardened distributed tracing and retry strategy — those would be next steps.
-- Using Redis for primary reservation state requires careful monitoring of memory usage and eviction policies in production.
+* postgres-db -> Core persistent storage engine running on port 5432.
+* redis-cache -> Fast-path atomic state caching pool running on port 6379.
+* zookeeper -> Broker cluster coordination routing node.
+* kafka -> High-throughput message stream broker cluster running on port 9092 (internal) and 29092 (host interaction mapping).
+* doodle-app -> The main microservice core runtime context running on port 8080.
 
----
+------------------------------
+## 🧪 Testing
+The codebase is protected via a thorough testing strategy spanning multiple architectural layers:
 
-## 8) Next steps and extension ideas
+* Unit Testing (JUnit 5 + Mockito): Enforces business logic safety, timezone boundary conversions, and strict record layout validations.
+* Slice Testing (@WebMvcTest): Asserts input payload validation rules, structural JSON sanitization behaviors, and centralized exception advice mapping filters at the HTTP gate boundary.
+* Integration Testing (Testcontainers): Instantiates real, cloud-native Docker container environments for PostgreSQL, Redis, and Kafka to execute multi-threaded race condition validations. Using a CountDownLatch pool, tests fire 100 concurrent booking threads attacking a single slot simultaneously to guarantee our Redis validation logic successfully allows exactly one write while safely returning 409 conflict responses to the remaining 99 requests without transaction leakage.
 
-If you want to expand this project to a production-grade service, recommended next steps:
+------------------------------
+## 📂 Project Structure
+````
+com.doodle
+├── config              # Global framework beans, OpenApi, and Redis/Kafka serialization mappings
+├── controller          # Pure HTTP REST traffic API entry routers
+├── dto                 # Immutable Java Record contract transmission models
+├── enums               # Segregated presentation filters and persistence states
+├── exception           # Unchecked domain exception types and global response handlers
+├── kafka
+│   ├── consumer        # Transaction-aware cluster message listeners
+│   ├── producer        # Deterministic key-routing partition event publishers
+│   └── model           # Immutable event envelope record frames
+├── model               # Auditable, soft-deletable Hibernate persistence entities
+├── repository          # High-performance index-aligned Spring Data query abstractions
+└── service
+    ├── impl            # Core business domain implementations and state machines
+    └── helper          # Common date chronology check utilities and safe lag buffers
+````
+------------------------------
+## ⚖️ Trade-offs & Design Decisions
+## ✅ Prioritization Decisions
 
-1. Add resiliency patterns: retry with exponential backoff for the outbox relay and Kafka consumer.
-2. Add distributed tracing (OpenTelemetry) to correlate HTTP requests → Redis → Kafka → DB.
-3. Harden idempotency and upsert semantics for DB writes (use `ON CONFLICT` upserts and unique constraints)
-4. Add authentication/authorization (JWT/OAuth2) and multi-tenant isolation if required.
-5. Add rate-limiting and queuing fallback to avoid DOS during massive bursts.
-
----
-
-## 9) Where to look in the codebase (guided tour)
-
-- Controllers: `src/main/java/com/doodle/controller/*`
-- Services: `src/main/java/com/doodle/service/impl/*`
-- Entities: `src/main/java/com/doodle/model/*`
-- Repositories: `src/main/java/com/doodle/repository/*`
-- Kafka producer/consumer helpers: `src/main/java/com/doodle/kafka/*`
-- Testcontainers initializers: `src/test/java/com/doodle/config/*`
-
----
-
-If you'd like, I can:
-
-- Clean up any remaining failing tests and convert selected tests to full integration tests using Testcontainers and docker-compose.
-- Add a small Postman collection or OpenAPI examples (the app already includes springdoc OpenAPI starter).
-- Provide a short design doc with sequence diagrams for the booking flow.
-
-Tell me which of the above you'd like me to do next and I will implement it.
+* Transactional Outbox Over Live In-Flight Emits: We prioritized message delivery safety by using an outbox pattern table log. This ensures event emissions are atomic with database writes, protecting the system from split-brain data sync errors if network connections drop.
+* Redis Atomic Pre-Checks Over Relational Block Locks: We prioritized overall throughput under extreme concurrent user booking actions. Executing state lock assignments inside Redis memory first shields the main PostgreSQL tablespace from heavy row-level lock wait loops, avoiding database transaction pool starvation.
+* Segregated Presentation Filters (CustomSlotStatus): We purposefully isolated frontend filtering wildcards (like ALL) away from core column enum tables (SlotStatus). This protects database model cleanliness and allows database states to evolve independently without breaking legacy frontend client maps.
 
 

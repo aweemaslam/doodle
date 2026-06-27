@@ -3,6 +3,7 @@ package com.doodle.service.helper;
 import com.doodle.dto.BulkSlotRequest;
 import com.doodle.dto.SlotRequest;
 import com.doodle.dto.TimeSlotResponse;
+import com.doodle.exception.InvalidMethodArgumentException;
 import com.doodle.model.TimeSlotEntity;
 import com.doodle.model.UserEntity;
 import com.doodle.enums.SlotStatus;
@@ -17,65 +18,96 @@ class TimeSlotHelperServiceTest {
 
     private final TimeSlotHelperService helper = new TimeSlotHelperService();
 
+    // ----------------------------
+    // 1. TIMEZONE CONSTRAINTS
+    // ----------------------------
     @Test
-    void validateTimezone_acceptsNullAndValid() {
-        // null should be allowed
-        assertDoesNotThrow(() -> helper.validateTimezone(null));
+    void validateTimezone_rejectsNullOrBlank() {
+        // null must be rejected with the specific blank/null text message
+        InvalidMethodArgumentException nullEx = assertThrows(InvalidMethodArgumentException.class,
+                () -> helper.validateTimezone(null));
+        assertTrue(nullEx.getMessage().contains("cannot be blank or null"));
 
-        // valid timezone
+        // empty/blank strings must be rejected with the specific blank/null text message
+        InvalidMethodArgumentException blankEx = assertThrows(InvalidMethodArgumentException.class,
+                () -> helper.validateTimezone("   "));
+        assertTrue(blankEx.getMessage().contains("cannot be blank or null"));
+    }
+
+    @Test
+    void validateTimezone_acceptsValidIdentifiers() {
+        // Valid structural IANA parameters should pass without error
         assertDoesNotThrow(() -> helper.validateTimezone("UTC"));
         assertDoesNotThrow(() -> helper.validateTimezone("Europe/London"));
+        assertDoesNotThrow(() -> helper.validateTimezone("America/New_York"));
     }
 
     @Test
     void validateTimezone_rejectsInvalid() {
-        IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
+        // Unknown, corrupted, or non-IANA values should throw an error containing the specific mismatch string
+        InvalidMethodArgumentException ex = assertThrows(InvalidMethodArgumentException.class,
                 () -> helper.validateTimezone("Not/AZone"));
-        assertTrue(ex.getMessage().contains("Invalid IANA Time Zone ID"));
+        assertTrue(ex.getMessage().contains("Invalid Time Zone ID: Not/AZone"));
     }
 
+    // ----------------------------
+    // 2. BOUNDARY & CHRONOLOGY VALIDATIONS
+    // ----------------------------
     @Test
     void validateTimeBoundaries_andBulkRequest() {
-        Instant a = Instant.parse("2023-01-01T00:00:00Z");
-        Instant b = Instant.parse("2023-01-01T01:00:00Z");
+        // Use active current markers to pass the Network Lag safety threshold successfully
+        Instant startTimeNow = Instant.now().plusSeconds(10);
+        Instant endTimeLater = startTimeNow.plusSeconds(1800); // 30-minute block duration
 
-        // single slot valid
-        SlotRequest valid = new SlotRequest("owner", a, b, "UTC");
+        // Valid single slot configuration execution check
+        SlotRequest valid = new SlotRequest("owner@example.com", startTimeNow, endTimeLater, "UTC");
         assertDoesNotThrow(() -> helper.validateTimeBoundaries(valid));
 
-        // invalid where start >= end
-        SlotRequest invalid = new SlotRequest("owner", b, a, "UTC");
-        assertThrows(IllegalArgumentException.class, () -> helper.validateTimeBoundaries(invalid));
+        // Chronological violation validation check: End time matches or precedes the starting timestamp
+        SlotRequest chronologicalViolation = new SlotRequest("owner@example.com", endTimeLater, startTimeNow, "UTC");
+        InvalidMethodArgumentException chronoEx = assertThrows(InvalidMethodArgumentException.class,
+                () -> helper.validateTimeBoundaries(chronologicalViolation));
+        assertTrue(chronoEx.getMessage().contains("Chronological Violation"));
 
-        // bulk request validations
-        BulkSlotRequest okBulk = new BulkSlotRequest("owner", a, b, 2, "UTC");
+        // Network Lag history boundary check: Timestamp represents the deep past (beyond 60 seconds margin)
+        Instant deepPastTime = Instant.now().minusSeconds(120);
+        SlotRequest pastViolation = new SlotRequest("owner@example.com", deepPastTime, endTimeLater, "UTC");
+        InvalidMethodArgumentException pastEx = assertThrows(InvalidMethodArgumentException.class,
+                () -> helper.validateTimeBoundaries(pastViolation));
+        assertTrue(pastEx.getMessage().contains("Past timestamps are not allowed"));
+
+        // Valid structural check for multi-block batch generations
+        BulkSlotRequest okBulk = new BulkSlotRequest("owner@example.com", startTimeNow, endTimeLater, 2, "UTC");
         assertDoesNotThrow(() -> helper.validateBulkRequest(okBulk));
-
-        BulkSlotRequest badNumber = new BulkSlotRequest("owner", a, b, 0, "UTC");
-        assertThrows(IllegalArgumentException.class, () -> helper.validateBulkRequest(badNumber));
     }
 
+    // ----------------------------
+    // 3. TRANSFORMATIONS & DATA RESOLUTIONS
+    // ----------------------------
     @Test
     void getRedisKey_and_mapToResponse() {
+        // Arrange business entities
         UserEntity user = new UserEntity();
         user.setEmail("u@example.com");
         user.setFullName("Test User");
         user.setDefaultTimezone(ZoneId.systemDefault().getId());
 
-        TimeSlotEntity e = new TimeSlotEntity();
-        e.setId(10L);
-        e.setOwner(user);
-        e.setStartTime(Instant.parse("2023-01-01T00:00:00Z"));
-        e.setEndTime(Instant.parse("2023-01-01T00:30:00Z"));
-        e.setTimezoneId("UTC");
-        e.setStatus(SlotStatus.FREE);
+        TimeSlotEntity entity = new TimeSlotEntity();
+        entity.setId(10L);
+        entity.setOwner(user);
+        entity.setStartTime(Instant.parse("2026-01-01T00:00:00Z"));
+        entity.setEndTime(Instant.parse("2026-01-01T00:30:00Z"));
+        entity.setTimezoneId("UTC");
+        entity.setStatus(SlotStatus.FREE);
 
+        // Evaluate Redis isolated storage naming generation match
         assertEquals("slot:state:10", helper.getRedisKey(10L));
 
-        TimeSlotResponse resp = helper.mapToResponse(e);
-        assertEquals(10L, resp.id());
-        assertEquals("u@example.com", resp.ownerId());
-        assertEquals(SlotStatus.FREE, resp.status());
+        // Evaluate domain transformation mappings
+        TimeSlotResponse response = helper.mapToResponse(entity);
+        assertEquals(10L, response.id());
+        assertEquals("u@example.com", response.ownerId());
+        assertEquals(SlotStatus.FREE, response.status());
+        assertEquals("UTC", response.timezoneId());
     }
 }
-

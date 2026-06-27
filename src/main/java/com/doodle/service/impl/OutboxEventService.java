@@ -8,19 +8,26 @@ import com.doodle.model.OutboxEventEntity;
 import com.doodle.repository.OutboxEventRepository;
 import com.doodle.service.IOutboxEventService;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Propagation;
+import org.springframework.transaction.annotation.Transactional;
 
-import java.util.Collections;
-import java.util.Optional;
-import java.util.stream.Collectors;
-
+/**
+ * Transactional log interceptor service.
+ * Appends outbox event entries within the same database transaction boundary as business operations.
+ */
 @Service
 @RequiredArgsConstructor
+@Slf4j
 public class OutboxEventService implements IOutboxEventService {
     private final OutboxEventRepository outboxEventRepository;
 
     @Override
+    @Transactional(propagation = Propagation.REQUIRED)
     public void saveOutbox(AggregateType aggregateType, String aggregateId, OutboxEventType eventType, OutboxEntityPayload payload) {
+        log.debug("Recording transactional outbox entry. Aggregate ID: {}, Event Type: {}", aggregateId, eventType);
+
         OutboxEventEntity event = new OutboxEventEntity();
         event.setAggregateType(aggregateType);
         event.setAggregateId(aggregateId);

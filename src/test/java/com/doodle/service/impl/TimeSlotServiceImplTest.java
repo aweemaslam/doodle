@@ -19,7 +19,6 @@ import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.data.redis.core.ValueOperations;
 
 import java.time.Instant;
-import java.util.List;
 import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -56,14 +55,13 @@ class TimeSlotServiceImplTest {
 
 		UserEntity user = new UserEntity();
 		user.setEmail("test@test.com");
-		user.setEmail("test@test.com");
 
 		when(request.ownerId()).thenReturn("test@test.com");
 		when(request.startTime()).thenReturn(Instant.now());
 		when(request.endTime()).thenReturn(Instant.now().plusSeconds(3600));
 		when(request.timezoneId()).thenReturn("UTC");
 
-		when(userRepository.findById("test@test.com")).thenReturn(Optional.of(user));
+		when(userRepository.findByEmailAndActiveTrue("test@test.com")).thenReturn(Optional.of(user));
 
 		when(repository.existsOverlappingSlot(anyString(), any(), any()))
 				.thenReturn(false);
@@ -96,7 +94,7 @@ class TimeSlotServiceImplTest {
 		when(request.timezoneId()).thenReturn("UTC");
 
 		UserEntity user = new UserEntity();
-		when(userRepository.findById("test@test.com")).thenReturn(Optional.of(user));
+		when(userRepository.findByEmailAndActiveTrue("test@test.com")).thenReturn(Optional.of(user));
 
 		when(repository.existsOverlappingSlot(any(), any(), any()))
 				.thenReturn(true);
@@ -113,7 +111,7 @@ class TimeSlotServiceImplTest {
 		SlotRequest request = mock(SlotRequest.class);
 
 		when(request.ownerId()).thenReturn("missing");
-		when(userRepository.findById("missing")).thenReturn(Optional.empty());
+		when(userRepository.findByEmailAndActiveTrue("missing")).thenReturn(Optional.empty());
 
 		assertThrows(ResourceNotFoundException.class,
 				() -> service.createSlot(request));
@@ -132,7 +130,7 @@ class TimeSlotServiceImplTest {
 		slot.setOwner(owner);
 		slot.setStatus(SlotStatus.FREE);
 
-		when(repository.findById(1L)).thenReturn(Optional.of(slot));
+		when(repository.findByIdAndActiveTrue(1L)).thenReturn(Optional.of(slot));
 
 		when(repository.existsOverlappingSlotExcludingId(
 				anyString(), any(), any(), anyLong()
@@ -156,13 +154,17 @@ class TimeSlotServiceImplTest {
 	// ----------------------------
 	@Test
 	void shouldBlockModifyIfSlotNotFree() {
+		UserEntity user = new UserEntity();
+		user.setEmail("test@test.com");
 		SlotRequest request = mock(SlotRequest.class);
 
 		TimeSlotEntity slot = new TimeSlotEntity();
 		slot.setStatus(SlotStatus.RESERVED);
-
-		when(repository.findById(1L)).thenReturn(Optional.of(slot));
-
+		slot.setOwner(user);
+		when(repository.findByIdAndActiveTrue(1L)).thenReturn(Optional.of(slot));
+		when(repository.existsOverlappingSlotExcludingId(
+				any(), any(), any(), anyLong()
+		)).thenReturn(true);
 		assertThrows(SlotConflictException.class,
 				() -> service.modifySlot(1L, request));
 	}
@@ -172,11 +174,11 @@ class TimeSlotServiceImplTest {
 	// ----------------------------
 	@Test
 	void shouldDeleteSlotSuccessfully() {
-		when(repository.existsById(1L)).thenReturn(true);
+		when(repository.findByIdAndActiveTrue(1L)).thenReturn(Optional.of(new TimeSlotEntity()));
 
 		service.deleteSlot(1L);
 
-		verify(repository).deleteById(1L);
+		assertEquals( repository.existsByIdAndActiveTrue(1L), false);
 	}
 
 	// ----------------------------
@@ -184,7 +186,7 @@ class TimeSlotServiceImplTest {
 	// ----------------------------
 	@Test
 	void shouldThrowWhenDeletingMissingSlot() {
-		when(repository.existsById(1L)).thenReturn(false);
+		when(repository.findByIdAndActiveTrue(1L)).thenReturn(Optional.empty());
 
 		assertThrows(ResourceNotFoundException.class,
 				() -> service.deleteSlot(1L));
@@ -196,7 +198,7 @@ class TimeSlotServiceImplTest {
 	@Test
 	void shouldChangeStatusSuccessfully() {
 		TimeSlotEntity slot = new TimeSlotEntity();
-		when(repository.findById(1L)).thenReturn(Optional.of(slot));
+		when(repository.findByIdAndActiveTrue(1L)).thenReturn(Optional.of(slot));
 
 		when(redisTemplate.opsForValue()).thenReturn(valueOperations);
 

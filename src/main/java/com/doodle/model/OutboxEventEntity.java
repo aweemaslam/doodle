@@ -1,7 +1,5 @@
 package com.doodle.model;
 
-
-
 import com.doodle.dto.OutboxEntityPayload;
 import com.doodle.enums.AggregateType;
 import com.doodle.enums.OutboxEventType;
@@ -10,18 +8,20 @@ import lombok.Getter;
 import lombok.Setter;
 import org.hibernate.annotations.JdbcTypeCode;
 import org.hibernate.type.SqlTypes;
-
-import java.io.Serializable;
 import java.util.UUID;
 
+/**
+ * Transactional Outbox event log entry entity.
+ * Captures systematic changes to aggregates atomically within the same database transaction.
+ */
 @Entity
 @Table(name = "outbox_events")
 @Getter
 @Setter
-public class OutboxEventEntity extends BaseEntity implements Serializable {
+public class OutboxEventEntity extends BaseEntity {
 
     @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    @GeneratedValue(strategy = GenerationType.UUID)
     @Column(name = "outbox_event_id", nullable = false)
     private UUID id;
 
@@ -37,22 +37,15 @@ public class OutboxEventEntity extends BaseEntity implements Serializable {
     private OutboxEventType eventType;
 
     @JdbcTypeCode(SqlTypes.JSON)
-    @Column(nullable = false, columnDefinition = "jsonb")
+    @Column(name = "payload", nullable = false, columnDefinition = "jsonb")
     private OutboxEntityPayload payload;
 
-    @Column(nullable = false)
-    private boolean processed;
+    @Column(name = "processed", nullable = false)
+    private boolean processed = false;
 
     @Column(name = "retry_count", nullable = false)
     private Integer retryCount = 0;
 
-    @Column(name = "last_error")
+    @Column(name = "last_error", columnDefinition = "TEXT")
     private String lastError;
-
-    @PrePersist
-    void prePersist() {
-        if (id == null) {
-            id = UUID.randomUUID();
-        }
-    }
 }

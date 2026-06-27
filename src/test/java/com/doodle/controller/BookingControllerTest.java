@@ -10,7 +10,7 @@ import java.util.Set;
 
 import static org.junit.jupiter.api.Assertions.*;
 
-class MeetingBookingControllerTest {
+class BookingControllerTest {
 
     private final ObjectMapper objectMapper = new ObjectMapper().findAndRegisterModules();
 
@@ -41,7 +41,7 @@ class MeetingBookingControllerTest {
 
         BookingResponse response = new BookingResponse(
                 SlotStatus.PENDING_RESERVATION,
-                "Meeting booking initiated, awaiting confirmation"
+                "Booking initiated, awaiting confirmation"
         );
 
         assertEquals(SlotStatus.PENDING_RESERVATION, response.status());

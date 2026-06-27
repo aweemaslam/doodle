@@ -5,7 +5,7 @@ spring:
     virtual:
       enabled: true
   datasource:
-    url: jdbc:h2:mem:doodle_test;MODE=PostgreSQL;DATABASE_TO_LOWER=TRUE;DEFAULT_NULL_ORDERING=HIGH;DB_CLOSE_ON_EXIT=FALSE;INIT=CREATE SCHEMA IF NOT EXISTS doodle
+    url: jdbc:h2:mem:doodle_test;MODE=PostgreSQL;DATABASE_TO_LOWER=TRUE;DEFAULT_NULL_ORDERING=HIGH;DB_CLOSE_ON_EXIT=FALSE;INIT=CREATE SCHEMA IF NOT EXISTS doodle\;SET SCHEMA doodle
     username: sa
     password:
     driver-class-name: org.h2.Driver
@@ -19,6 +19,9 @@ spring:
     open-in-view: false
     hibernate:
       ddl-auto: create-drop
+    properties:
+      hibernate:
+        default_schema: doodle
   liquibase:
     change-log: classpath:db/changelog/main-changelog.xml
     default-schema: doodle
@@ -60,5 +63,5 @@ server:
 app:
   jobs:
     outbox-publish-delay-ms: 20
-
-
+  redis:
+    hydrate-on-startup: false

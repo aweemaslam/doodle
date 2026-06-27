@@ -2,9 +2,7 @@ package com.doodle.kafka.consumer;
 
 
 import com.doodle.kafka.model.BookingEvent;
-import com.doodle.repository.MeetingRepository;
-import com.doodle.repository.TimeSlotRepository;
-import com.doodle.service.IMeetingService;
+import com.doodle.service.IBookingsService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.kafka.annotation.KafkaListener;
@@ -15,10 +13,10 @@ import org.springframework.transaction.annotation.Transactional;
 @RequiredArgsConstructor
 @Slf4j
 public class BookingEventKafkaConsumer {
-    private final IMeetingService meetingService;
+    private final IBookingsService meetingService;
 
-    @KafkaListener(topics = "${spring.kafka.topic.book-slot-event}",
-            groupId = "${spring.kafka.consumer.group-id}")
+    @KafkaListener(topics = "${spring.kafka.topic.book-slot-event:resere-slot-topic}",
+            groupId = "${spring.kafka.consumer.group-id:booking-persistence-group}")
     @Transactional
     public void consumeEvent(BookingEvent bookingEvent) throws Exception {
 
@@ -27,10 +25,11 @@ public class BookingEventKafkaConsumer {
         switch (bookingEvent.eventType()) {
             case "PENDING_RESERVATION_EVENT" -> meetingService.performReservation(bookingEvent.payload());
             case "RESERVED_EVENT" -> generateNotification(bookingEvent);
+            default -> log.warn("Unmatched event type token bypassed processing chain: {}", bookingEvent.eventType());
         }
     }
 
-    void generateNotification(BookingEvent bookingEvent) {
-        log.info("Slot reserved and call generate notification method for event: {}", bookingEvent);
+    private void generateNotification(BookingEvent bookingEvent) {
+        log.info("Slot transaction finalized. Triggering notification handler for event ID: {}", bookingEvent.aggregateId());
     }
 }

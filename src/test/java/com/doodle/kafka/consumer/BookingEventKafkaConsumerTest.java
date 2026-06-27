@@ -2,7 +2,7 @@ package com.doodle.kafka.consumer;
 
 import com.doodle.kafka.model.BookingEvent;
 import com.doodle.dto.OutboxEntityPayload;
-import com.doodle.service.IMeetingService;
+import com.doodle.service.IBookingsService;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
@@ -16,7 +16,7 @@ import static org.mockito.Mockito.*;
 class BookingEventKafkaConsumerTest {
 
     @Mock
-    private IMeetingService meetingService;
+    private IBookingsService bookingService;
 
     @InjectMocks
     private BookingEventKafkaConsumer consumer;
@@ -38,7 +38,7 @@ class BookingEventKafkaConsumerTest {
 
         consumer.consumeEvent(event);
 
-        verify(meetingService, times(1))
+        verify(bookingService, times(1))
                 .performReservation(payload);
     }
 
@@ -57,7 +57,7 @@ class BookingEventKafkaConsumerTest {
 
         consumer.consumeEvent(event);
 
-        verifyNoInteractions(meetingService);
+        verifyNoInteractions(bookingService);
     }
 
     // ----------------------------
@@ -75,7 +75,7 @@ class BookingEventKafkaConsumerTest {
 
         consumer.consumeEvent(event);
 
-        verifyNoInteractions(meetingService);
+        verifyNoInteractions(bookingService);
     }
 
     // ----------------------------

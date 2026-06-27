@@ -31,7 +31,7 @@ dependencies {
 	implementation 'org.springframework.boot:spring-boot-starter-data-redis'
 	implementation 'org.springframework.boot:spring-boot-starter-kafka'
 	// === Database Migration & Driver Ecosystem ===
-	implementation 'org.liquibase:liquibase-core'
+	implementation("org.springframework.boot:spring-boot-starter-liquibase")
 	runtimeOnly 'org.postgresql:postgresql'
 
 	// === Extension Libraries & Utils ===
