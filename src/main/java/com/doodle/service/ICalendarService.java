@@ -1,7 +1,6 @@
 package com.doodle.service;
 
 import com.doodle.dto.LocalizedTimeSlotResponse;
-import com.doodle.dto.TimeSlotResponse;
 import com.doodle.enums.CustomSlotStatus;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;

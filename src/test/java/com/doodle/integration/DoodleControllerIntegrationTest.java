@@ -1,14 +1,7 @@
 package com.doodle.integration;
 
-import com.doodle.dto.BookingRequest;
-import com.doodle.dto.SlotRequest;
-import com.doodle.repository.TimeSlotRepository;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Test;
 import org.springframework.test.context.ActiveProfiles;
-
-import java.time.Instant;
-import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.*;
 

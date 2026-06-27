@@ -1,6 +1,5 @@
 package com.doodle.controller;
 
-import com.doodle.dto.ErrorResponse;
 import com.doodle.exception.SlotConflictException;
 import com.doodle.exception.InvalidStatusTransitionException;
 import com.doodle.exception.ResourceNotFoundException;

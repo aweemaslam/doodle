@@ -46,7 +46,7 @@ class BookingControllerTest {
 
         assertEquals(SlotStatus.PENDING_RESERVATION, response.status());
         assertNotNull(response.message());
-        assertTrue(response.message().contains("booking"));
+        assertTrue(response.message().contains("Booking"));
     }
 
     // ----------------------------

@@ -3,8 +3,6 @@ package com.doodle.dto;
 import com.doodle.enums.SlotStatus;
 import io.swagger.v3.oas.annotations.media.Schema;
 
-import java.time.Instant;
-
 public record LocalizedTimeSlotResponse(
         @Schema(description = "Unique primary database auto-incrementing key token.", example = "1042")
         Long id,

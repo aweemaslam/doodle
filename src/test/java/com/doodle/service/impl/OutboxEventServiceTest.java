@@ -57,8 +57,6 @@ class OutboxEventServiceTest {
 
         OutboxEntityPayload payload = new OutboxEntityPayload(1L, null);
 
-        ArgumentCaptor<OutboxEventEntity> captor = ArgumentCaptor.forClass(OutboxEventEntity.class);
-
         when(outboxEventRepository.save(any())).thenAnswer(invocation -> {
             OutboxEventEntity entity = invocation.getArgument(0);
             entity.setId(UUID.randomUUID());

@@ -18,7 +18,7 @@ public class BookingEventKafkaConsumer {
     @KafkaListener(topics = "${spring.kafka.topic.book-slot-event:resere-slot-topic}",
             groupId = "${spring.kafka.consumer.group-id:booking-persistence-group}")
     @Transactional
-    public void consumeEvent(BookingEvent bookingEvent) throws Exception {
+    public void consumeEvent(BookingEvent bookingEvent) {
 
         log.info("Received event: {}", bookingEvent);
 
