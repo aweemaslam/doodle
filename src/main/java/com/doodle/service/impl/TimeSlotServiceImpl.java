@@ -4,6 +4,7 @@ import com.doodle.dto.BulkSlotRequest;
 import com.doodle.dto.SlotRequest;
 import com.doodle.dto.TimeSlotResponse;
 import com.doodle.enums.SlotStatus;
+import com.doodle.exception.InvalidStatusTransitionException;
 import com.doodle.exception.ResourceNotFoundException;
 import com.doodle.exception.SlotConflictException;
 import com.doodle.exception.InvalidMethodArgumentException;
@@ -147,6 +148,13 @@ public class TimeSlotServiceImpl implements TimeSlotService {
         TimeSlotEntity slot = timeSlotRepository.findByIdAndActiveTrue(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Slot not found with ID: %d".formatted(id)));
 
+        // Validate the state workflow progression
+        if (!slot.getStatus().canTransitionTo(status)) {
+            throw new InvalidStatusTransitionException(
+                    "Invalid status transition: Cannot change slot status from %s to %s"
+                            .formatted(slot.getStatus(), status)
+            );
+        }
         slot.setStatus(status);
         timeSlotRepository.save(slot);
 

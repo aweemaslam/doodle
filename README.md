@@ -1,7 +1,7 @@
- 🗓️ Doodle API – High-Performance Distributed Meeting Scheduling Engine
+ 🗓️ Doodle API – High-Performance Meeting Scheduling Engine
 ------------------------------
 ## 📌 Overview
-This project is a production-grade Spring Boot microservice that implements a complete, highly available Meeting Scheduling Platform with time slot management, distributed calendars, dynamic time zone translation, Kafka event streaming, Redis caching, and distributed scheduling.
+This project is a production-grade Spring Boot microservice that implements a complete, highly available Meeting Scheduling Platform with time slot management, user based calendars, dynamic time zone translation, Kafka event streaming, Redis caching, and distributed scheduling.
 The current implementation intentionally remains a modular monolith to keep operational complexity low while preserving clear service boundaries for future extraction into independent microservices.
 The implementation goes beyond a standard CRUD service by incorporating modern backend engineering practices, including microservice-friendly architecture patterns such as:
 
@@ -61,7 +61,8 @@ The system is designed to simulate a real-world scalable meeting orchestration p
 * Lombok
 
 ------------------------------
-## 🚀 Features & Enhancements## 📦 Time Slot & Meeting Management
+## 🚀 Features & Enhancements
+## 📦 Time Slot & Meeting Management
 
 * Create singular availability slots or bulk-divide a macro timeline into equal segments.
 * Universal pageable lookup window aggregation query pipelines.

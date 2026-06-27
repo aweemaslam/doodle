@@ -25,10 +25,10 @@ public class TimeSlotEntity extends BaseEntity {
     @JoinColumn(name = "owner_id", nullable = false)
     private UserEntity owner;
 
-    @Column(name = "start_time", nullable = false, columnDefinition = "TIMESTAMPTZ")
+    @Column(name = "start_time", nullable = false)
     private Instant startTime;
 
-    @Column(name = "end_time", nullable = false, columnDefinition = "TIMESTAMPTZ")
+    @Column(name = "end_time", nullable = false)
     private Instant endTime;
 
     @Column(name = "timezone_id", nullable = false, length = 64)

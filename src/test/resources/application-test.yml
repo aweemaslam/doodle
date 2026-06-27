@@ -65,3 +65,4 @@ app:
     outbox-publish-delay-ms: 20
   redis:
     hydrate-on-startup: false
+

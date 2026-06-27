@@ -2,9 +2,11 @@ package com.doodle.enums;
 
 import io.swagger.v3.oas.annotations.media.Schema;
 
+import java.util.Set;
+
 /**
  * Core domain enum representing the physical persistence availability states of a TimeSlot.
- * Locked strictly to actual database database state realities.
+ * Locked strictly to actual database state realities.
  */
 @Schema(description = "The absolute physical state classification of an individual calendar time segment.")
 public enum SlotStatus {
@@ -30,5 +32,18 @@ public enum SlotStatus {
      * The slot has been successfully claimed
      */
     @Schema(description = "The slot has been officially converted into a confirmed meeting booking.")
-    RESERVED
+    RESERVED;
+
+    public Set<SlotStatus> getValidNextStatuses() {
+        return switch (this) {
+            case FREE -> Set.of(PENDING_RESERVATION, NOT_AVAILABLE);
+            case PENDING_RESERVATION -> Set.of(RESERVED, FREE, NOT_AVAILABLE);
+            case RESERVED -> Set.of(NOT_AVAILABLE, FREE);
+            case NOT_AVAILABLE -> Set.of(FREE);
+        };
+    }
+
+    public boolean canTransitionTo(SlotStatus targetStatus) {
+        return this.getValidNextStatuses().contains(targetStatus);
+    }
 }

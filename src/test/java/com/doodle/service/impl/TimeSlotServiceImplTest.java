@@ -202,9 +202,9 @@ class TimeSlotServiceImplTest {
 
 		when(redisTemplate.opsForValue()).thenReturn(valueOperations);
 
-		service.changeStatus(1L, SlotStatus.RESERVED);
+		service.changeStatus(1L, SlotStatus.PENDING_RESERVATION);
 
-		assertEquals(SlotStatus.RESERVED, slot.getStatus());
+		assertEquals(SlotStatus.PENDING_RESERVATION, slot.getStatus());
 		verify(repository).save(slot);
 		verify(redisTemplate).opsForValue();
 	}
