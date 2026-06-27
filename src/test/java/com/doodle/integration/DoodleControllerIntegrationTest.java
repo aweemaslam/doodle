@@ -86,7 +86,7 @@ class DoodleControllerIntegrationTest {
                 "Asia/Karachi"
         );
 
-        String response = mockMvc.perform(post("/api/v1/slots")
+        mockMvc.perform(post("/api/v1/slots")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(mapper.writeValueAsString(request)))
                 .andExpect(status().isCreated())

@@ -178,7 +178,7 @@ class TimeSlotServiceImplTest {
 
 		service.deleteSlot(1L);
 
-		assertEquals( repository.existsByIdAndActiveTrue(1L), false);
+        assertFalse(repository.existsByIdAndActiveTrue(1L));
 	}
 
 	// ----------------------------
