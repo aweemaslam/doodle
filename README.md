@@ -288,8 +288,7 @@ curl -X POST "http://localhost:8080/api/v1/slots/5/book" \
 The codebase is protected via a thorough testing strategy spanning multiple architectural layers:
 
 * Unit Testing (JUnit 5 + Mockito): Enforces business logic safety, timezone boundary conversions, and strict record layout validations.
-* Slice Testing (@WebMvcTest): Asserts input payload validation rules, structural JSON sanitization behaviors, and centralized exception advice mapping filters at the HTTP gate boundary.
-* Integration Testing (Testcontainers): Instantiates real, cloud-native Docker container environments for PostgreSQL, Redis, and Kafka to execute multi-threaded race condition validations. Using a CountDownLatch pool, tests fire 100 concurrent booking threads attacking a single slot simultaneously to guarantee our Redis validation logic successfully allows exactly one write while safely returning 409 conflict responses to the remaining 99 requests without transaction leakage.
+* Integration Testing (Testcontainers): Instantiates real, cloud-native Docker container environments for PostgreSQL, Redis, and Kafka to execute.
 
 ------------------------------
 ## 📂 Project Structure
