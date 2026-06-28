@@ -1,6 +1,7 @@
 package com.doodle.integration;
 
 import com.doodle.DoodleApplication;
+import com.doodle.config.RedisTestContainerConfig;
 import com.doodle.dto.BookingRequest;
 import com.doodle.dto.BulkSlotRequest;
 import com.doodle.dto.SlotRequest;
@@ -15,6 +16,7 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.http.MediaType;
 import org.springframework.test.context.ActiveProfiles;
+import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
@@ -31,6 +33,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
         webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT,
         classes = DoodleApplication.class
 )
+@ContextConfiguration(initializers = RedisTestContainerConfig.class)
 @AutoConfigureMockMvc
 @ActiveProfiles("test")
 @TestMethodOrder(MethodOrderer.OrderAnnotation.class)
